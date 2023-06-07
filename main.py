@@ -9,7 +9,7 @@ if __name__ == '__main__':
         mic = sr.Microphone(device_index=1)
 
         with mic as source:
-            audio = r.listen(source)
+            audio = r.listen(source, phrase_time_limit=1)
 
         try:
             recognized = list(map(lambda x: x.lower(), r.recognize_google(audio).split()))

@@ -10,8 +10,9 @@ PATH = [
     r'C:\"Program Files (x86)"',
     r'C:\Users\hugge\AppData\Local\Programs',
     r'C:\Users\hugge\AppData\Local',
+    r'C:\Users\hugge\AppData\Roaming',
     r'D:\"Program Files"',
-    r'D:\"Program Files (x86)"'
+    r'D:\"Program Files (x86)"',
 ]
 
 
@@ -55,17 +56,20 @@ class Windows(threading.Thread):
                 os.system(rf'start {p}\application\"{app}"')
                 return
 
-        for i in range(1, 4):
+        for i in range(1, 5):
             for p1 in PATH:
                 for p2 in get_paths(i, p1.replace('"', '')):
                     striped_p = rf'{p1}\{p2}'.replace('"', '')
                     if os.path.isfile(rf'{striped_p}\{app}.exe'):
+                        print(rf'{p1}\{p2}\"{app}"')
                         os.system(rf'start {p1}\{p2}\"{app}"')
                         return
                     elif os.path.isfile(rf'{striped_p}\{app}\{app}.exe'):
+                        print(rf'{p1}\{p2}\"{app}"')
                         os.system(rf'start {p1}\{p2}\"{app}"\"{app}"')
                         return
                     elif os.path.isfile(rf'{striped_p}\application\{app}.exe'):
+                        print(rf'{p1}\{p2}\"{app}"')
                         os.system(rf'start {p1}\{p2}\application\"{app}"')
                         return
 
