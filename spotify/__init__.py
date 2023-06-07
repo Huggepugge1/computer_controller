@@ -1,173 +1,191 @@
-import pyautogui as pag
-import time
-import pytesseract
 import gtts
 from playsound import playsound
 import threading
 import os
 import speech_recognition as sr
+import spotipy
+import spotipy.util as util
+from pprint import pprint
 
 
-class ImageToAudio(threading.Thread):
-    def __init__(self, img):
+class TextToAudio(threading.Thread):
+    def __init__(self, text):
         threading.Thread.__init__(self)
-        self.img = img
-    
+        self.text = text
 
     def run(self):
-        scale = 10
-        self.img = self.img.resize((self.img.size[0] * scale, self.img.size[1] * scale))
-        self.img.save("save.png")
-        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
-        text = pytesseract.image_to_string(self.img)
-
-        if text == '' or text == '\n':
-            text = 'Could not get song name'
-
-        tts = gtts.gTTS(text)
-        filename = './song_name.mp3'
+        tts = gtts.gTTS(self.text)
+        filename = './track_name.mp3'
         tts.save(filename)
-         
+
         sound_thread = PlaySound(filename)
         sound_thread.start()
 
 
 class PlaySound(threading.Thread):
-    def __init__(self, sound_file):
+    def __init__(self, sound_file, remove=True):
         threading.Thread.__init__(self)
         self.sound_file = sound_file
+        self.remove = remove
 
     def run(self):
         playsound(self.sound_file)
-        os.remove(self.sound_file)
+        if self.remove:
+            os.remove(self.sound_file)
 
 
-class Spotify:
+class Spotify(threading.Thread):
+    def __init__(self, func):
+        self.func = func
+        threading.Thread.__init__(self)
+
     def __enter__(self):
-        pag.press('win')
-        pag.press(c for c in 'spotify')
-        pag.press('enter')
+        username = "o2qkd20qrvolzmi4mdgrs4s37"
+
+        scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing app-remote-control " \
+                "streaming playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public " \
+                "user-read-playback-position user-top-read user-read-recently-played user-library-read "
+        try:
+            token = util.prompt_for_user_token(username, scope)
+        except:
+            os.remove(f".cache-{username}")
+            token = util.prompt_for_user_token(username, scope)
+        self.sp = spotipy.Spotify(auth=token)
         return self
 
-
     def __exit__(self, type, value, traceback):
-        pag.hotkey('win', 'down')
         return False
 
-    
     def play(self):
-        time.sleep(0.2)
-        if pag.locateOnScreen('./spotify/images/play_button.png', confidence=.95) is not None:
-            pag.press('space')
-        else:
-            r   = sr.Recognizer()
-            mic = sr.Microphone(device_index=1)
+        try:
+            self.sp.start_playback()
+        except spotipy.exceptions.SpotifyException:
+            pass
+        return
 
-            with mic as source:
-                audio = r.listen(source, 1000000, 4)
-
-            try:
-                song_name = ' '.join(map(lambda x: x.lower(), r.recognize_google(audio).split()))
-                print(list(map(lambda x: 'space' if x == ' ' else x, (c for c in song_name))))
-                pag.hotkey('ctrl', 'k')
-                pag.press(map(lambda x: 'space' if x == ' ' else x, (c for c in song_name)))
-                time.sleep(0.4)
-                pag.hotkey('shift', 'enter')
-                pag.press('esc')
-
-            except sr.exceptions.UnknownValueError:
-                pass
-
-    
     def pause(self):
-        time.sleep(0.2)
-        if pag.locateOnScreen('./spotify/images/pause_button.png', confidence=.95) is not None:
-            pag.press('space')
+        self.sp.pause_playback()
+        return
 
-    
-    def next_song(self):
-        pag.hotkey('ctrl', 'right')
+    def next_track(self):
+        self.sp.next_track()
+        return
 
+    def last_track(self):
+        self.sp.previous_track()
+        return
 
-    def last_song(self):
-        pag.hotkey('ctrl', 'left')
-        pag.hotkey('ctrl', 'left')
-
-
-    def get_repeat_status(self):
-        time.sleep(0.2)
-        if pag.locateOnScreen('./spotify/images/repeat_playlist.png', confidence=.90) is not None:
-            return 1
-        elif pag.locateOnScreen('./spotify/images/repeat_song.png', confidence=.90) is not None:
-            return 2
-        elif pag.locateOnScreen('./spotify/images/no_repeat.png', confidence=.90) is not None:
-            return 0
-    
-    
     def no_repeat(self):
-        for i in range((0 - self.get_repeat_status()) % 3):
-            pag.hotkey('ctrl', 'r')
-        
+        self.sp.repeat("off")
+        return
 
     def repeat_playlist(self):
-        for i in range((1 - self.get_repeat_status()) % 3):
-            pag.hotkey('ctrl', 'r')
+        self.sp.repeat("context")
+        return
 
-
-    def repeat_song(self):
-        for i in range((2 - self.get_repeat_status()) % 3):
-            pag.hotkey('ctrl', 'r')
-    
+    def repeat_track(self):
+        self.sp.repeat("track")
+        return
 
     def shuffle(self):
-        time.sleep(0.2)
-        if pag.locateOnScreen('./spotify/images/shuffle.png', confidence=.90) is None:
-            pag.hotkey('ctrl', 's')
-
+        self.sp.shuffle(True)
+        return
 
     def stop_shuffle(self):
-            time.sleep(0.2)
-            if pag.locateOnScreen('./spotify/images/dont_shuffle.png', confidence=.90) is None:
-                pag.hotkey('ctrl', 's')
+        self.sp.shuffle(False)
+        return
 
-
-    def song_name(self):
-        pag.hotkey('win', 'up')
-        time.sleep(0.2)
-        pag.click(pag.locateCenterOnScreen('./spotify/images/home.png', confidence=.90))
-        heart_location = pag.locateOnScreen('./spotify/images/like.png', confidence=.90).left
-        heart_offset = 20
-        img = pag.screenshot(region=(10, 970, heart_location - heart_offset, 28))
-
-        sound_thread = ImageToAudio(img)
+    def track_name(self):
+        sound_thread = TextToAudio(self.sp.current_playback()['item']['name'])
         sound_thread.start()
- 
-        pag.hotkey('win', 'down')
-    
+        return
 
     def artist_name(self):
-        pag.hotkey('win', 'up')
-        time.sleep(0.2)
-        pag.click(pag.locateCenterOnScreen('./spotify/images/home.png', confidence=.90))
-        heart_location = pag.locateOnScreen('./spotify/images/like.png', confidence=.90).left
-        heart_offset = 20
-        img = pag.screenshot(region=(10, 993, heart_location - heart_offset, 28))
-
-        sound_thread = ImageToAudio(img)
+        artists = []
+        for artist in self.sp.current_playback()['item']['artists']:
+            artists.append(artist["name"])
+        sound_thread = TextToAudio(" and ".join(artists))
         sound_thread.start()
- 
-        pag.hotkey('win', 'down')
+        return
 
+    def track_info(self):
+        track = self.sp.current_playback()
+        context = track['context']
+        print(context)
 
-    def playlist_information(self):
-        time.sleep(0.2)
-        pag.click(pag.locateCenterOnScreen('./spotify/images/home.png', confidence=.90))
-        pag.hotkey('win', 'up')
-        pag.hotkey('alt', 'shift', 'j')
-        time.sleep(0.2)
-        img = pag.screenshot('save.png', region=(550, 170, 1350, 250))
+        if context is None:
+            artists = []
+            for artist in track['item']['album']['artists']:
+                artists.append(artist["name"])
+            sound_thread = TextToAudio(f'You are listening to {track["item"]["name"]} by {" and ".join(artists)}.')
+            sound_thread.start()
 
-        sound_thread = ImageToAudio(img)
-        sound_thread.start()
- 
-        pag.hotkey('win', 'down')
+        elif context['type'] == 'album':
+            artists = []
+            for artist in track['item']['album']['artists']:
+                artists.append(artist["name"])
+            if track['item']['album']['album_type'] == 'single':
+                sound_thread = TextToAudio(f'You are listening to a {track["item"]["album"]["album_type"]}'
+                                           f'called {track["item"]["album"]["name"]} by {" and ".join(artists)}.')
+            else:
+                sound_thread = TextToAudio(f'You are listening to a {track["item"]["album"]["album_type"]}'
+                                           f'called {track["item"]["album"]["name"]} by {" and ".join(artists)}.'
+                                           f'Current track: {track["item"]["name"]}')
+            sound_thread.start()
+
+        elif context['type'] == 'artist':
+            artists = []
+            for artist in track['item']['artists']:
+                artists.append(artist["name"])
+            sound_thread = TextToAudio(f'You are listening to {self.sp.artists([context["uri"]])["artists"][0]["name"]}.'
+                                       f'Current track: {track["item"]["name"]} by {" and ".join(artists)}')
+            sound_thread.start()
+
+        elif context['type'] == 'playlist':
+            artists = []
+            for artist in track['item']['artists']:
+                artists.append(artist["name"])
+            sound_thread = TextToAudio(f'You are listening to {self.sp.playlist(context["uri"])["name"]}. '
+                                       f'Current track: {track["item"]["name"]} by {" and ".join(artists)}')
+            sound_thread.start()
+
+    def search(self, q):
+        if q[0].lower() == 'track':
+            self.sp.start_playback(uris=[
+                self.sp.search(" ".join(q[1:]), 1, 0, type='track'.lower())['tracks']['items'][0]['uri']])
+        elif q[0].lower() in ['artist', 'album', 'playlist']:
+            self.sp.start_playback(context_uri=
+                                   self.sp.search(" ".join(q[1:]), 1, 0, type=q[0].lower())[
+                                       q[0].lower() + 's']['items'][0]['uri'])
+
+    def run(self):
+        func = self.func
+        if func == 'play':
+            self.play()
+        elif func in ['pause', 'pulse']:
+            self.pause()
+        elif func in ['next', 'next song', 'next track']:
+            self.next_track()
+        elif func in ['last', 'last song', 'last track']:
+            self.last_track()
+        elif func == 'no_repeat':
+            self.no_repeat()
+        elif func == 'repeat playlist':
+            self.repeat_playlist()
+        elif func == 'repeat track':
+            self.repeat_track()
+        elif func == 'shuffle':
+            self.shuffle()
+        elif func == 'don\'t shuffle':
+            self.stop_shuffle()
+        elif func == 'name track':
+            self.track_name()
+        elif func == 'name aritst':
+            self.artist_name()
+        elif func == 'track info':
+            self.track_info()
+        elif func.split()[0] == 'search':
+            self.search(func.split()[1:])
+        else:
+            print("unknown command")
+        return

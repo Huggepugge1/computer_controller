@@ -1,8 +1,3 @@
-import spotify
-import time
+import os
 
-for i in range(100):
-    with spotify.Spotify() as s:
-        s.play('Olivia rodrigo')
-
-    time.sleep(1)
+print(list(filter(lambda x: os.path.isdir(f"./{x}"), os.listdir('.'))))
